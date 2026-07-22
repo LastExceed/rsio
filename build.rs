@@ -12,6 +12,7 @@ fn main() {
 			"COINIT_APARTMENTTHREADED",
 			"CoCreateInstance",
 			"CLSCTX_SERVER",
+			"E_POINTER",
 			"HWND",
 			"CoUninitialize"
 		]);

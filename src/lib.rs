@@ -320,7 +320,7 @@ unsafe fn instanciate_driver_interface(guid: *const GUID) -> windows_core::Resul
     // However, the windows-rs wrapper of this function acquires the IID from a trait-associated constant,
     // which is impossible to implement in this case.
     let i_unknown: IUnknown =
-        unsafe { CoCreateInstance(guid, None, CLSCTX_SERVER)? };
+        unsafe { CoCreateInstance(guid, None, CLSCTX_SERVER) }?;
 
     // The same limitation also applies to `.cast()`.
     // Luckily, the underlying `.query()` is public,
@@ -331,8 +331,8 @@ unsafe fn instanciate_driver_interface(guid: *const GUID) -> windows_core::Resul
 /// Same as [`Interface::cast`], except that the target interface's IID is decoupled from its type.
 unsafe fn cast_decoupled<Target: Interface>(interface: &impl Interface, target_iid: *const GUID) -> windows_core::Result<Target> {
     let mut out = None;
-    unsafe { interface.query(target_iid, (&raw mut out).cast()).ok()?; }
-    out.expect("QueryInterface() should have populated the out-pointer when returning a success code")
+    unsafe { interface.query(target_iid, (&raw mut out).cast()) }.ok()?;
+    out.ok_or(E_POINTER.into())
 }
 
 fn convert_cstring(buffer: &[u8]) -> String {
