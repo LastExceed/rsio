@@ -66,7 +66,8 @@ pub struct Driver(IDriver, COM);
 impl Driver {
     fn new(guid: &GUID) -> windows_core::Result<Self> {
         let com = COM::new(COINIT_APARTMENTTHREADED)?;
-        let i_driver = unsafe { instanciate_driver_interface(guid) }?;
+        let i_driver = unsafe { IDriver::create_instance(guid) }?;
+
         Ok(Self(i_driver, com))
     }
     
@@ -309,19 +310,21 @@ pub struct BufferCreateArgs {
     pub channel: ChannelIndex
 }
 
-/// # Safety
-/// COM must be initialized.
-unsafe fn instanciate_driver_interface(guid: *const GUID) -> windows_core::Result<IDriver> {
-    // In theory, `CoCreateInstance` could instanciate the IDriver interface directly.
-    // However, the windows-rs wrapper of this function acquires the IID from a trait-associated constant,
-    // which is impossible to implement in this case.
-    let i_unknown: IUnknown =
-        unsafe { CoCreateInstance(guid, None, CLSCTX_SERVER) }?;
+impl IDriver {
+    /// # Safety
+    /// COM must be initialized.
+    unsafe fn create_instance(guid: *const GUID) -> windows_core::Result<Self> {
+        // In theory, `CoCreateInstance` could instanciate the IDriver interface directly.
+        // However, the windows-rs wrapper of this function acquires the IID from a trait-associated constant,
+        // which is impossible to implement in this case.
+        let i_unknown: IUnknown =
+            unsafe { CoCreateInstance(guid, None, CLSCTX_SERVER) }?;
 
-    // The same limitation also applies to `.cast()`.
-    // Luckily, the underlying `.query()` is public,
-    // which enables the following work-around:
-    unsafe { cast_decoupled(&i_unknown, guid) }
+        // The same limitation also applies to `.cast()`.
+        // Luckily, the underlying `.query()` is public,
+        // which enables the following work-around:
+        unsafe { cast_decoupled(&i_unknown, guid) }
+    }
 }
 
 impl ErrorCode {
