@@ -17,3 +17,22 @@ pub(crate) fn convert_cstring(buffer: &[u8]) -> String {
     .to_string_lossy()
     .into_owned()
 }
+
+/// This ZST ensures correct pairing of calls to [`CoInitializeEx`] and [`CoUninitialize`]
+#[derive(Debug)]
+pub struct COM(()); // private field to prevent manual construction
+
+impl COM {
+	pub fn new(coinit: COINIT) -> windows_core::Result<Self> {
+		unsafe { CoInitializeEx(None, coinit) }.ok()?;
+		Ok(Self(()))
+	}
+}
+
+impl Drop for COM {
+	fn drop(&mut self) {
+		// SAFETY:
+		// if init had failed, `self` would not have been created in the first place
+		unsafe { CoUninitialize(); }
+	}
+}

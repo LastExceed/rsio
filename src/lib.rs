@@ -62,12 +62,12 @@ impl DriverMetadata {
 }
 
 #[derive(Debug)]
-pub struct Driver(IDriver);
+pub struct Driver(IDriver, COM);
 impl Driver {
     fn new(guid: &GUID) -> windows_core::Result<Self> {
-        unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) }.ok()?;
+        let com = COM::new(COINIT_APARTMENTTHREADED)?;
         let i_driver = unsafe { instanciate_driver_interface(guid) }?;
-        Ok(Self(i_driver))
+        Ok(Self(i_driver, com))
     }
     
     pub fn init(&self, main_window_handle: Option<HWND>) -> Result<(), String> {
@@ -260,12 +260,6 @@ impl Driver {
     pub fn output_ready(&self) -> Result<(), Error> {
         unsafe { self.0.output_ready() }
         .to_result((), &self.0)
-    }
-}
-
-impl Drop for Driver {
-    fn drop(&mut self) {
-        unsafe { CoUninitialize(); }
     }
 }
 
