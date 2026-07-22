@@ -1,5 +1,6 @@
 pub mod ffi;
 pub mod future;
+pub mod utils;
 #[expect(
     dead_code,
     non_snake_case,
@@ -17,9 +18,10 @@ mod windows_bindings {
 
 use std::fmt::{self, Display};
 use std::{ffi::*, mem, ptr};
-use windows_core::{GUID, IUnknown, Interface};
+use windows_core::{GUID, IUnknown};
 use self::future::Future;
 use self::ffi::*;
+use self::utils::*;
 use self::windows_bindings::*;
 
 pub use self::windows_bindings::{HWND, HANDLE};
@@ -326,21 +328,6 @@ unsafe fn instanciate_driver_interface(guid: *const GUID) -> windows_core::Resul
     // Luckily, the underlying `.query()` is public,
     // which enables the following work-around:
     unsafe { cast_decoupled(&i_unknown, guid) }
-}
-
-/// Same as [`Interface::cast`], except that the target interface's IID is decoupled from its type.
-unsafe fn cast_decoupled<Target: Interface>(interface: &impl Interface, target_iid: *const GUID) -> windows_core::Result<Target> {
-    let mut out = None;
-    unsafe { interface.query(target_iid, (&raw mut out).cast()) }.ok()?;
-    out.ok_or(E_POINTER.into())
-}
-
-fn convert_cstring(buffer: &[u8]) -> String {
-    CStr
-    ::from_bytes_until_nul(buffer)
-    .expect("buffer overflow")
-    .to_string_lossy()
-    .into_owned()
 }
 
 impl ErrorCode {
