@@ -123,20 +123,18 @@ impl Driver {
         .to_result((), &self.0)
     }
 
-	pub fn channel_count(&self) -> Result<(i32, i32)> {
-        let mut n_in = 0;
-        let mut n_out = 0;
+	pub fn channel_counts(&self) -> Result<ChannelCounts> {
+        let mut counts = ChannelCounts { in_: 0, out: 0 };
         
-        unsafe { self.0.get_channels(&raw mut n_in, &raw mut n_out) }
-        .to_result((n_in, n_out), &self.0)
+        unsafe { self.0.get_channels(&raw mut counts.in_, &raw mut counts.out) }
+        .to_result(counts, &self.0)
     }
 
-    pub fn latencies(&self) -> Result<(i32, i32)> {
-        let mut n_in = 0;
-        let mut n_out = 0;
+    pub fn latencies(&self) -> Result<Latencies> {
+        let mut latencies = Latencies { in_: 0, out: 0 };
         
-        unsafe { self.0.get_latencies(&raw mut n_in, &raw mut n_out) }
-        .to_result((n_in, n_out), &self.0)
+        unsafe { self.0.get_latencies(&raw mut latencies.in_, &raw mut latencies.out) }
+        .to_result(latencies, &self.0)
     }
 
     pub fn buffer_size(&self) -> Result<BufferSize> {
@@ -191,12 +189,11 @@ impl Driver {
         .to_result((), &self.0)
     }
 
-	pub fn sample_position(&self) -> Result<(Samples, TimeStamp)> {
-        let mut sample_position = 0;
-        let mut time_stamp      = 0;
+	pub fn sample_position(&self) -> Result<SamplePosition> {
+        let mut sample_pos = SamplePosition { position: 0, time_stamp: 0 };
         
-        unsafe { self.0.get_sample_position(&raw mut sample_position, &raw mut time_stamp) }
-        .to_result((sample_position, time_stamp), &self.0)
+        unsafe { self.0.get_sample_position(&raw mut sample_pos.position, &raw mut sample_pos.time_stamp) }
+        .to_result(sample_pos, &self.0)
     }
 
 	pub fn channel_info(&self, channel: ChannelIndex, input: bool) -> Result<ChannelInfoResponse> {
@@ -283,6 +280,24 @@ impl Display for Error {
 
 #[expect(clippy::absolute_paths, reason = "name collision")]
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ChannelCounts {
+    pub in_: c_long,
+    pub out: c_long
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Latencies {
+    pub in_: c_long,
+    pub out: c_long
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SamplePosition {
+    pub position: Samples,
+    pub time_stamp: TimeStamp
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ChannelInfoResponse {
