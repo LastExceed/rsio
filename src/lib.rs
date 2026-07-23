@@ -38,29 +38,30 @@ pub fn discover_drivers() -> WinResult<Vec<DriverMetadata>> {
     .map(|driver_key_name| {
         let driver_key = software_key.open(&driver_key_name)?;
 
-        Ok(DriverMetadata {
-            clsid      : driver_key.get_string("clsid")?,
-            description: driver_key.get_string("description")?
-        })
+        let clsid =
+            driver_key
+            .get_string("clsid")?
+            .trim_matches(['{', '}'])
+            .try_into()?;
+        
+        let description =
+            driver_key
+            .get_string("description")?;
+        
+        Ok(DriverMetadata { clsid, description })
     })
     .collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DriverMetadata {
-    pub clsid: String,
+    pub clsid: GUID,
     pub description: String,
 }
 
 impl DriverMetadata {
     pub fn create_instance(&self) -> WinResult<Driver> {
-        let guid =
-            self
-            .clsid
-            .trim_matches(['{', '}'])
-            .try_into()?;
- 
-        Driver::new(&guid)
+        Driver::new(&self.clsid)
     }
 }
 
