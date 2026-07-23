@@ -16,8 +16,9 @@ mod windows_bindings {
     include!(concat!(env!("OUT_DIR"), "/windows_bindgen_out.rs"));
 }
 
-use std::fmt::{self, Display};
-use std::{ffi::*, mem, ptr};
+use std::{fmt, mem, ptr};
+use std::fmt::Display;
+use std::ffi::*;
 use windows_core::{GUID, IUnknown};
 use self::future::Future;
 use self::ffi::*;
@@ -26,8 +27,10 @@ use self::windows_bindings::*;
 
 pub use self::windows_bindings::{HWND, HANDLE};
 
+type WinResult<T> = windows_core::Result<T>;
+
 /// Enumerates all available ASIO drivers
-pub fn discover_drivers() -> windows_registry::Result<Vec<DriverMetadata>> {
+pub fn discover_drivers() -> WinResult<Vec<DriverMetadata>> {
     let software_key = windows_registry::LOCAL_MACHINE.open("SOFTWARE\\ASIO")?;
         
     software_key
@@ -50,7 +53,7 @@ pub struct DriverMetadata {
 }
 
 impl DriverMetadata {
-    pub fn create_instance(&self) -> windows_core::Result<Driver> {
+    pub fn create_instance(&self) -> WinResult<Driver> {
         let guid =
             self
             .clsid
@@ -64,14 +67,14 @@ impl DriverMetadata {
 #[derive(Debug)]
 pub struct Driver(IDriver, COM);
 impl Driver {
-    fn new(guid: &GUID) -> windows_core::Result<Self> {
+    fn new(guid: &GUID) -> WinResult<Self> {
         let com = COM::new(COINIT_APARTMENTTHREADED)?;
         let i_driver = unsafe { IDriver::create_instance(guid) }?;
 
         Ok(Self(i_driver, com))
     }
     
-    pub fn init(&self, main_window_handle: Option<HWND>) -> Result<(), String> {
+    pub fn init(&self, main_window_handle: Option<HWND>) -> Result<()> {
         let sys_ref = main_window_handle.unwrap_or_default(); 
 
         let success =
@@ -82,7 +85,8 @@ impl Driver {
         if success {
             Ok(())
         } else {
-            Err(self.last_error())
+            ErrorCode(-1) // no proper error code available here
+            .to_result((), &self.0)
         }
     }
     
@@ -109,17 +113,17 @@ impl Driver {
         convert_cstring(&buf)
     }
     
-    pub fn start(&self) -> Result<(), Error> {
+    pub fn start(&self) -> Result<()> {
         unsafe { self.0.start() }
         .to_result((), &self.0)
     }
     
-    pub fn stop(&self) -> Result<(), Error> {
+    pub fn stop(&self) -> Result<()> {
         unsafe { self.0.stop() }
         .to_result((), &self.0)
     }
 
-	pub fn channel_count(&self) -> Result<(i32, i32), Error> {
+	pub fn channel_count(&self) -> Result<(i32, i32)> {
         let mut n_in = 0;
         let mut n_out = 0;
         
@@ -127,7 +131,7 @@ impl Driver {
         .to_result((n_in, n_out), &self.0)
     }
 
-    pub fn latencies(&self) -> Result<(i32, i32), Error> {
+    pub fn latencies(&self) -> Result<(i32, i32)> {
         let mut n_in = 0;
         let mut n_out = 0;
         
@@ -135,31 +139,31 @@ impl Driver {
         .to_result((n_in, n_out), &self.0)
     }
 
-    pub fn buffer_size(&self) -> Result<BufferSize, Error> {
+    pub fn buffer_size(&self) -> Result<BufferSize> {
         let mut out: BufferSize = unsafe { mem::zeroed() };
         
         unsafe { self.0.get_buffer_size(&raw mut out.min, &raw mut out.max, &raw mut out.preferred, &raw mut out.granularity) }
         .to_result(out, &self.0)
     }
 
-	pub fn can_sample_rate(&self, sample_rate: SampleRate) -> Result<(), Error> {
+	pub fn can_sample_rate(&self, sample_rate: SampleRate) -> Result<()> {
         unsafe { self.0.can_sample_rate(sample_rate) }
         .to_result((), &self.0)
     }
     
-    pub fn get_sample_rate(&self) -> Result<SampleRate, Error> {
+    pub fn get_sample_rate(&self) -> Result<SampleRate> {
         let mut sample_rate = f64::NAN;
 
         unsafe { self.0.get_sample_rate(&raw mut sample_rate) }
         .to_result(sample_rate, &self.0)
     }
     
-    pub fn set_sample_rate(&self, sample_rate: SampleRate) -> Result<(), Error> {
+    pub fn set_sample_rate(&self, sample_rate: SampleRate) -> Result<()> {
         unsafe { self.0.set_sample_rate(sample_rate) }
         .to_result((), &self.0)
     }
     
-	pub fn clock_sources(&self) -> Result<Vec<ClockSource>, Error> {
+	pub fn clock_sources(&self) -> Result<Vec<ClockSource>> {
         let mut count = 1;
         let mut first = unsafe { mem::zeroed() };
         
@@ -182,12 +186,12 @@ impl Driver {
         Ok(all)
     }
 
-	pub fn set_clock_source(&self, clock_source: ClockSourceIndex) -> Result<(), Error> {
+	pub fn set_clock_source(&self, clock_source: ClockSourceIndex) -> Result<()> {
         unsafe { self.0.set_clock_source(clock_source) }
         .to_result((), &self.0)
     }
 
-	pub fn sample_position(&self) -> Result<(Samples, TimeStamp), Error> {
+	pub fn sample_position(&self) -> Result<(Samples, TimeStamp)> {
         let mut sample_position = 0;
         let mut time_stamp      = 0;
         
@@ -195,7 +199,7 @@ impl Driver {
         .to_result((sample_position, time_stamp), &self.0)
     }
 
-	pub fn channel_info(&self, channel: ChannelIndex, input: bool) -> Result<ChannelInfoResponse, Error> {
+	pub fn channel_info(&self, channel: ChannelIndex, input: bool) -> Result<ChannelInfoResponse> {
         let mut info =
             ChannelInfo {
                 channel,
@@ -213,7 +217,7 @@ impl Driver {
         buffer_size: c_long,
         callbacks: &mut Callbacks
     )
-    -> Result<Vec<[*mut c_void; 2]>, Error> 
+    -> Result<Vec<[*mut c_void; 2]>> 
     {
         let mut infos =
             args
@@ -233,13 +237,13 @@ impl Driver {
         Ok(infos.into_iter().map(|info| info.buffers).collect())
     }
 
-	pub fn dispose_all_buffers(&self) -> Result<(), Error> {
+	pub fn dispose_all_buffers(&self) -> Result<()> {
         unsafe { self.0.dispose_buffers() }
         .to_result((), &self.0)
     }
 
     /// Tells the driver to open its GUI
-    pub fn open_control_panel(&self) -> Result<(), Error> {
+    pub fn open_control_panel(&self) -> Result<()> {
         unsafe { self.0.control_panel() }
         .to_result((), &self.0)
     }
@@ -247,7 +251,7 @@ impl Driver {
     /// A very unfortunate name. 
     /// This function actually has nothing to do with async code,
     /// it merely provides a mechanism for extending ASIO in the future.
-    pub fn future<T: Future>(&self, param: &mut T::Param) -> Result<(), Error> {
+    pub fn future<T: Future>(&self, param: &mut T::Param) -> Result<()> {
         let selector = T::SELECTOR.0;
         let opt = ptr::from_mut(param).cast();
         
@@ -258,7 +262,7 @@ impl Driver {
     /// Tells the driver that the host is done processing output buffers.
     /// This is not implicitly inferred from the return of [`Callbacks::buffer_switch`] / [`Callbacks::buffer_switch_time_info`]
     /// because it might have been called by a thread that doesn't allow processing within the callback
-    pub fn output_ready(&self) -> Result<(), Error> {
+    pub fn output_ready(&self) -> Result<()> {
         unsafe { self.0.output_ready() }
         .to_result((), &self.0)
     }
@@ -276,6 +280,9 @@ impl Display for Error {
         write!(f, "[{}] {}", self.code.0, self.message)
     }
 }
+
+#[expect(clippy::absolute_paths, reason = "name collision")]
+pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ChannelInfoResponse {
@@ -313,7 +320,7 @@ pub struct BufferCreateArgs {
 impl IDriver {
     /// # Safety
     /// COM must be initialized.
-    unsafe fn create_instance(guid: *const GUID) -> windows_core::Result<Self> {
+    unsafe fn create_instance(guid: *const GUID) -> WinResult<Self> {
         // In theory, `CoCreateInstance` could instanciate the IDriver interface directly.
         // However, the windows-rs wrapper of this function acquires the IID from a trait-associated constant,
         // which is impossible to implement in this case.
@@ -328,7 +335,7 @@ impl IDriver {
 }
 
 impl ErrorCode {
-    fn to_result<T>(self, ok_value: T, i_driver: &IDriver) -> Result<T, Error> {
+    fn to_result<T>(self, ok_value: T, i_driver: &IDriver) -> Result<T> {
         if matches!(self, Self::OK | Self::SUCCESS) {
             return Ok(ok_value);
         }
