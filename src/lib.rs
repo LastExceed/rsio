@@ -64,20 +64,16 @@ impl DriverMetadata {
     }
     
     pub fn create_instance(&self) -> WinResult<Driver> {
-        Driver::new(&self.clsid)
+        let com = COM::new(COINIT_APARTMENTTHREADED)?;
+        let i_driver = unsafe { IDriver::create_instance(&raw const self.clsid) }?;
+
+        Ok(Driver(i_driver, com))
     }
 }
 
 #[derive(Debug)]
 pub struct Driver(IDriver, COM);
 impl Driver {
-    fn new(guid: &GUID) -> WinResult<Self> {
-        let com = COM::new(COINIT_APARTMENTTHREADED)?;
-        let i_driver = unsafe { IDriver::create_instance(guid) }?;
-
-        Ok(Self(i_driver, com))
-    }
-    
     pub fn init(&self, main_window_handle: Option<HWND>) -> Result<()> {
         let sys_ref = main_window_handle.unwrap_or_default(); 
 
